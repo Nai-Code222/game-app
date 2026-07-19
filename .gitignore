@@ -8,6 +8,8 @@
 
 # Node
 /node_modules
+# Nested node_modules (e.g. server/)
+node_modules/
 npm-debug.log
 yarn-error.log
 
