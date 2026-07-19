@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Local game host + buzzer server for Phrase Frenzy",
+  "description": "Local game host + buzzer server for Jepo-Robeorts-Reynolds",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
