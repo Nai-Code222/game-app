@@ -1,0 +1,183 @@
+<div class="host">
+  <!-- Left: live teams & points -->
+  <aside class="teams-panel">
+    <h1 class="logo">Jepo-RobNyolds</h1>
+    <a class="view-link" [href]="controls() ? '/' : '/host'">{{ controls() ? '📺 Game view' : '⚙ Host controls' }}</a>
+    <h2 class="panel-title">Teams</h2>
+    @if (state().teams.length === 0) {
+      <p class="empty">No teams yet…</p>
+    }
+    @for (t of state().teams; track t.id) {
+      <div
+        class="team-card"
+        [class.picker]="t.id === state().pickerTeamId"
+        [class.buzzed]="state().round && t.id === state().round!.buzzedTeamId"
+        [class.locked]="state().round && state().round!.lockedTeamIds.includes(t.id)"
+      >
+        <div class="team-head">
+          <span class="team-name">{{ t.name }}</span>
+          <span class="team-score">{{ t.score }}</span>
+        </div>
+        <div class="team-players">
+          @for (p of t.players; track p.name) {
+            <span class="chip" [class.ready]="p.ready">{{ p.name }}{{ p.ready ? ' ✓' : '' }}</span>
+          }
+        </div>
+        @if (controls()) {
+          <div class="team-adjust">
+            <button class="adj" type="button" (click)="rt.hostAdjustScore(t.id, -100)" title="Subtract 100">−100</button>
+            <button class="adj" type="button" (click)="rt.hostAdjustScore(t.id, 100)" title="Add 100">+100</button>
+          </div>
+        }
+      </div>
+    }
+  </aside>
+
+  <!-- Right: main stage -->
+  <main class="stage">
+    <p class="ticker">{{ state().message }}</p>
+
+    <!-- Add questions (paste box) — host control panel only -->
+    @if (controls() && (state().phase === 'lobby' || state().phase === 'board')) {
+      <div class="paste-wrap">
+        <button class="btn ghost small" type="button" (click)="showPaste.set(!showPaste())">
+          {{ showPaste() ? 'Close' : '＋ Add questions' }}
+        </button>
+        @if (showPaste()) {
+          <div class="paste-panel">
+            <p class="paste-help">
+              Paste AI-generated tiles like
+              <code>{{ '{' }} category: 'Gaming', value: 100, phrase: 'TETRIS', clue: '...' {{ '}' }}</code>.
+              They're added to the pool, so resets pull fresh questions.
+            </p>
+            <textarea
+              class="paste-area"
+              [value]="pasteText()"
+              (input)="pasteText.set($any($event.target).value)"
+              placeholder="{ category: 'History', value: 100, phrase: 'THE MOON LANDING', clue: 'One giant leap, 1969' },"
+            ></textarea>
+            <div class="paste-actions">
+              <button class="btn" type="button" (click)="loadPaste()">Add to pool</button>
+              @if (pasteMsg()) { <span class="paste-msg" [class.ok]="pasteOk()">{{ pasteMsg() }}</span> }
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- LOBBY -->
+    @if (state().phase === 'lobby') {
+      <section class="lobby">
+        <h2>Scan to join</h2>
+        <p class="sub">Point your phone camera at the code, pick a team, and tap Ready.</p>
+        @if (qr()) { <img class="qr" [src]="qr()" alt="Join QR code" /> }
+        <p class="join-url">{{ state().joinUrl }}</p>
+        <button class="btn go" type="button" [disabled]="!state().allReady" (click)="rt.hostStart()">
+          {{ state().allReady ? 'Start Game →' : 'Waiting for players to be ready…' }}
+        </button>
+      </section>
+    }
+
+    <!-- BOARD -->
+    @if (state().phase === 'board') {
+      <section class="board-wrap">
+        <div class="board-top">
+          <button class="btn surprise" type="button" (click)="rt.hostSurprise()">🎲 Surprise Me</button>
+        </div>
+        <div class="grid" [style.--cols]="state().categories.length">
+          @for (cat of state().categories; track cat) {
+            <div class="col-head">{{ cat }}</div>
+          }
+          @for (val of state().values; track val) {
+            @for (cat of state().categories; track cat) {
+              <button
+                class="tile-btn"
+                type="button"
+                [disabled]="tileUsed(cat, val)"
+                [class.done]="tileUsed(cat, val)"
+                (click)="rt.hostPickTile(cat, val)"
+              >
+                <span>{{ tileUsed(cat, val) ? '✓' : val }}</span>
+                @if (!tileUsed(cat, val) && poolCount(cat, val) > 1) {
+                  <span class="pool-badge" title="questions in the pool">×{{ poolCount(cat, val) }}</span>
+                }
+              </button>
+            }
+          }
+        </div>
+        @if (controls()) {
+          <div class="reset-wrap">
+            @if (!showReset()) {
+              <button class="btn ghost small" type="button" (click)="showReset.set(true)">Reset game</button>
+            } @else {
+              <div class="reset-menu">
+                <span class="reset-q">Reset — which one?</span>
+                <button class="btn tiny" type="button" (click)="clearPoints()">Just clear points</button>
+                <button class="btn tiny alt" type="button" (click)="returnToLobby()">Return to lobby</button>
+                <button class="btn ghost small" type="button" (click)="showReset.set(false)">Cancel</button>
+              </div>
+            }
+          </div>
+        }
+      </section>
+    }
+
+    <!-- ROUND / ROUND OVER -->
+    @if (state().round && (state().phase === 'round' || state().phase === 'roundOver')) {
+      <section class="round">
+        <div class="round-head">
+          <span class="pill">{{ state().round!.category }} · {{ state().round!.value }} pts</span>
+          @if (state().phase === 'round' && state().round!.secondsLeft !== null) {
+            <span class="timer" [class.low]="state().round!.secondsLeft! <= 10">⏱ {{ state().round!.secondsLeft }}s</span>
+          }
+        </div>
+
+        @if (state().round!.definition) {
+          <div class="word-clue">
+            <span class="pos">{{ state().round!.partOfSpeech }}</span>
+            <p class="def">{{ state().round!.definition }}</p>
+            <p class="ex">{{ state().round!.example }}</p>
+          </div>
+        } @else if (state().round!.clue) {
+          <p class="clue">{{ state().round!.clue }}</p>
+        }
+
+        <div class="puzzle">
+          @for (tile of state().round!.tiles; track $index) {
+            @if (tile.space) {
+              <span class="tile space" aria-hidden="true"></span>
+            } @else {
+              <span class="tile" [class.revealed]="tile.revealed">{{ tile.char }}</span>
+            }
+          }
+        </div>
+
+        @if (state().phase === 'round') {
+          @if (buzzedName()) {
+            <p class="buzz-status live">🔔 {{ buzzedName() }} is answering…</p>
+          } @else {
+            <p class="buzz-status open">Buzzers open — first team to buzz answers!</p>
+          }
+          @if (controls()) {
+            <div class="controls">
+              <button class="btn" type="button" (click)="rt.hostRevealLetter()">Reveal a letter</button>
+              <button class="btn ghost" type="button" (click)="rt.hostRevealAnswer()">Reveal answer</button>
+            </div>
+
+            <!-- Manual override: run the round from the host if phones fail -->
+            <div class="override">
+              <span class="override-label">Manual: award this puzzle to</span>
+              <div class="override-teams">
+                @for (t of state().teams; track t.id) {
+                  <button class="btn tiny" type="button" (click)="rt.hostAwardWin(t.id)">{{ t.name }} ✓</button>
+                }
+              </div>
+            </div>
+          }
+        } @else {
+          <p class="next-note">Next round coming up…</p>
+        }
+      </section>
+    }
+  </main>
+</div>

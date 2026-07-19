@@ -1,0 +1,83 @@
+<div class="phone">
+  <h1 class="logo">Jepo-RobNyolds</h1>
+
+  <!-- ===== NOT JOINED: join / create team ===== -->
+  @if (!joined()) {
+    <div class="card">
+      <h2>Join the game</h2>
+      <label>Your name</label>
+      <input class="fld" type="text" [value]="playerName()" (input)="playerName.set($any($event.target).value)" placeholder="e.g. Sam" maxlength="20" />
+
+      <label>Team name — type a new one or tap an existing team</label>
+      <input class="fld" type="text" [value]="teamName()" (input)="teamName.set($any($event.target).value)" placeholder="e.g. The Comets" maxlength="24" />
+
+      @if (state().teams.length) {
+        <div class="team-chips">
+          @for (t of state().teams; track t.id) {
+            <button class="chip" type="button" (click)="pickExisting(t.name)">{{ t.name }} · {{ t.players.length }}</button>
+          }
+        </div>
+      }
+
+      @if (joinError()) { <p class="error">{{ joinError() }}</p> }
+      <button class="btn go" type="button" [disabled]="joining()" (click)="submitJoin()">Join</button>
+    </div>
+  }
+
+  <!-- ===== JOINED ===== -->
+  @if (joined()) {
+    <div class="status-bar">
+      <span class="team-tag">{{ myTeam()?.name }}</span>
+      <span class="score">{{ myTeam()?.score ?? 0 }} pts</span>
+    </div>
+
+    <!-- Lobby: ready up -->
+    @if (state().phase === 'lobby') {
+      <div class="card center">
+        <p class="big">You're in! 🎉</p>
+        <p class="muted">Tap ready when your team is set. The host starts when everyone's ready.</p>
+        <button class="btn" [class.go]="!myReady()" [class.ok]="myReady()" type="button" (click)="toggleReady()">
+          {{ myReady() ? "✓ Ready — tap to undo" : "I'm Ready" }}
+        </button>
+      </div>
+    }
+
+    <!-- Board: waiting for a tile -->
+    @if (state().phase === 'board') {
+      <div class="card center">
+        <p class="big">Get ready…</p>
+        <p class="muted">Waiting for a tile to be picked.</p>
+      </div>
+    }
+
+    <!-- Round -->
+    @if (state().phase === 'round' && state().round) {
+      <div class="card center round">
+        <span class="pill">{{ state().round!.category }} · {{ state().round!.value }} pts</span>
+
+        @if (isMyBuzz()) {
+          <p class="big good">You buzzed! Type your answer 👇</p>
+          <input class="fld big-input" type="text" [value]="answerText()" (input)="answerText.set($any($event.target).value)" (keyup.enter)="sendAnswer()" placeholder="Your answer" autofocus />
+          <button class="btn go" type="button" (click)="sendAnswer()">Send</button>
+        } @else if (state().round!.buzzedTeamId) {
+          <p class="big muted">🔔 Another team is answering…</p>
+        } @else if (myTeamLocked()) {
+          <p class="big muted">Other teams' turn to buzz — hang tight!</p>
+        } @else if (buzzOpen()) {
+          <button class="buzzer" type="button" (click)="buzz()">BUZZ</button>
+          <p class="muted">First to buzz gets to answer!</p>
+        }
+
+        @if (feedback()) { <p class="feedback">{{ feedback() }}</p> }
+      </div>
+    }
+
+    <!-- Round over -->
+    @if (state().phase === 'roundOver') {
+      <div class="card center">
+        <p class="big">{{ state().message }}</p>
+        <p class="muted">Next tile coming up…</p>
+      </div>
+    }
+  }
+</div>
